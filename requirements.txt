@@ -1,0 +1,25 @@
+# ============================================================================
+# VeritasAI Dependencies (Populated incrementally per feature branch)
+# ============================================================================
+
+# [Stage 0: Base & Config]
+python-dotenv>=1.0.1
+pytest>=8.3.0
+
+# [Module 1: Multimodal Ingestion (Granite-Docling, Excel, Markdown, Figures)]
+# (Added in feat/ingestion)
+
+# [Module 2: Embedding Engine (Qwen3-Embedding-8B + MRL + Quantization)]
+# (Added in feat/embeddings)
+
+# [Module 3: Hybrid Storage (FAISS + SQLite FTS5 + DuckDB/SQLite Tabular)]
+# (Added in feat/storage)
+
+# [Module 4: 3-Tier Month-Long Conversation Memory]
+# (Added in feat/memory)
+
+# [Module 5: Pure-Python Agentic RAG Engine]
+# (Added in feat/agent)
+
+# [Module 6: FastAPI Backend & SSE Streaming]
+# (Added in feat/api)
