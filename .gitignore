@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables
+.env
+
+# Runtime local data & indexes
+data/uploads/*
+!data/uploads/.gitkeep
+data/indexes/*
+!data/indexes/.gitkeep
+data/db/*
+!data/db/.gitkeep
+
+# OS & Editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
