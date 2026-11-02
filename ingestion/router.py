@@ -10,6 +10,7 @@ from ingestion.markdown_parser import MarkdownParser
 from ingestion.models import IngestionResult
 from ingestion.pdf_parser import PDFParser
 from ingestion.tabular_parser import TabularParser
+from ingestion.vlm_captioner import describe_image
 
 
 class IngestionRouter:
@@ -28,10 +29,10 @@ class IngestionRouter:
     ) -> None:
         self.chunker = chunker or HierarchicalChunker()
         self.figures_dir = figures_dir
+        self.figure_captioner = figure_captioner or describe_image
         self.md_parser = MarkdownParser(self.chunker)
         self.tabular_parser = TabularParser(self.chunker)
-        self.pdf_parser = PDFParser(self.chunker, self.tabular_parser, figure_captioner, figures_dir)
-        self.figure_captioner = figure_captioner
+        self.pdf_parser = PDFParser(self.chunker, self.tabular_parser, self.figure_captioner, figures_dir)
 
     def ingest_file(self, file_path: str | Path) -> IngestionResult:
         """Parses any supported document into ParentChunks, ChildChunks, and ExtractedTables."""
@@ -71,11 +72,14 @@ class IngestionRouter:
         )
 
     def _parse_standalone_image(self, path: Path, doc_id: str):
-        """Copies a standalone chart/image to figures directory and indexes its description."""
+        """Copies a standalone chart/image to figures directory and indexes its rich VLM description."""
         self.figures_dir.mkdir(parents=True, exist_ok=True)
-        dest = self.figures_dir / f"{doc_id[:8]}_{path.name}"
-        if path != dest:
-            shutil.copy2(path, dest)
+        if path.parent.resolve() == self.figures_dir.resolve():
+            dest = path
+        else:
+            dest = self.figures_dir / f"{doc_id[:8]}_{path.name}"
+            if path != dest:
+                shutil.copy2(path, dest)
 
         desc = (
             self.figure_captioner(dest, path.stem)
@@ -87,7 +91,7 @@ class IngestionRouter:
             filename=path.name,
             section_path="Standalone Figure",
             page_number=1,
-            text=f"[Image: {dest.name}] {desc}",
+            text=f"[Image: {dest.name}] {desc}\n![{path.name}](/figures/{dest.name})",
             modality="figure_caption",
         )
         for child in children:

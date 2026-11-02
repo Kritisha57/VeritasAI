@@ -1,29 +1,23 @@
-# ============================================================================
-# VeritasAI Dependencies (Populated incrementally per feature branch)
-# ============================================================================
-
-# [Stage 0: Base & Config]
+# Base & Config
 python-dotenv>=1.0.1
 pytest>=8.3.0
 
-# [Module 1: Multimodal Ingestion (Granite-Docling, Excel, Markdown, Figures)]
+# Document Ingestion
 docling==2.9.0
 docling-core==2.8.0
 openpyxl>=3.1.5
 pandas>=2.2.3
 pillow>=10.4.0
 
-# [Module 2: Embedding Engine (Qwen3-Embedding-8B + MRL + Quantization)]
-# (Added in feat/embeddings)
+# Embeddings & FAISS
+sentence-transformers>=3.0.0
+faiss-cpu>=1.8.0
+numpy>=1.26.0
 
-# [Module 3: Hybrid Storage (FAISS + SQLite FTS5 + Qwen3-Reranker-4B)]
-# (Added in feat/storage)
+# Generation LLM via Groq
+httpx>=0.27.0
 
-# [Module 4: 3-Tier Month-Long Conversation Memory]
-# (Added in feat/memory)
-
-# [Module 5: Pure-Python Agentic RAG Engine (Groq: openai/gpt-oss-120b)]
-# (Added in feat/agent)
-
-# [Module 6: FastAPI Backend & SSE Streaming]
-# (Added in feat/api)
+# Web API
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
