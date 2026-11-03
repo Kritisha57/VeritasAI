@@ -1,4 +1,4 @@
-"""VLM image captioner using Qwen/Qwen3.5-27B via Hugging Face Inference API."""
+"""VLM image captioner using qwen/qwen3.8-27b via Groq API."""
 
 import base64
 import os
@@ -8,8 +8,8 @@ import httpx
 
 load_dotenv()
 
-HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
-DEFAULT_VLM_MODEL = "Qwen/Qwen3.5-27B"
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+DEFAULT_VLM_MODEL = "qwen/qwen3.8-27b"
 
 
 def encode_image_base64(image_path: Path) -> str:
@@ -21,10 +21,10 @@ def encode_image_base64(image_path: Path) -> str:
 
 
 def describe_image(image_path: Path, caption_hint: str = "") -> str:
-    """Generates a rich, searchable description of a figure using Qwen/Qwen3.5-27B."""
-    hf_key = os.getenv("HUGGINGFACE_KEY") or os.getenv("HF_TOKEN", "")
-    model = os.getenv("VLM_MODEL", DEFAULT_VLM_MODEL)
-    if not hf_key or not image_path.exists():
+    """Generates a rich, searchable description of a figure using qwen/qwen3.8-27b on Groq."""
+    groq_key = os.getenv("GROQ_API_KEY", "")
+    model = DEFAULT_VLM_MODEL
+    if not groq_key or not image_path.exists():
         return caption_hint or f"Figure from {image_path.name}"
 
     data_uri = encode_image_base64(image_path)
@@ -36,7 +36,7 @@ def describe_image(image_path: Path, caption_hint: str = "") -> str:
     if caption_hint:
         prompt += f"\nOriginal figure caption: {caption_hint}"
 
-    headers = {"Authorization": f"Bearer {hf_key}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
     payload = {
         "model": model,
         "messages": [
@@ -52,7 +52,7 @@ def describe_image(image_path: Path, caption_hint: str = "") -> str:
         "temperature": 0.2,
     }
     try:
-        resp = httpx.post(HF_API_URL, headers=headers, json=payload, timeout=60.0)
+        resp = httpx.post(GROQ_API_URL, headers=headers, json=payload, timeout=60.0)
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:

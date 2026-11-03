@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import httpx
 from embeddings.embedder import Embedder
 from embeddings.reranker import BGEReranker
-from ingestion.vlm_captioner import HF_API_URL, encode_image_base64
+from ingestion.vlm_captioner import GROQ_API_URL, encode_image_base64
 from memory.memory_manager import MemoryManager
 from storage.faiss_store import FAISSStore
 from storage.sqlite_store import SQLiteStore
