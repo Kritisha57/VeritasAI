@@ -1,25 +1,20 @@
-"""Simple pure-Python agentic RAG orchestrator with multimodal VLM generation and latency tracking."""
+"""Simple pure-Python agentic RAG orchestrator with Groq generation and latency tracking."""
 
 import os
-from pathlib import Path
-import re
 import time
 from dotenv import load_dotenv
 import httpx
 from embeddings.embedder import Embedder
 from embeddings.reranker import BGEReranker
-from ingestion.vlm_captioner import GROQ_API_URL, encode_image_base64
 from memory.memory_manager import MemoryManager
 from storage.faiss_store import FAISSStore
 from storage.sqlite_store import SQLiteStore
 
 load_dotenv()
 
-IMAGE_REF_RE = re.compile(r"(?:Image:\s*|/figures/)([^\s\]\)]+\.(?:png|jpg|jpeg|webp))", re.IGNORECASE)
-
 
 class AgentOrchestrator:
-    """Coordinates memory recall, retrieval, reranking, and multimodal VLM generation."""
+    """Coordinates memory recall, retrieval, reranking, and Groq LLM generation."""
 
     def __init__(
         self,
@@ -28,9 +23,8 @@ class AgentOrchestrator:
         embedder: Embedder,
         reranker: BGEReranker | None = None,
         memory: MemoryManager | None = None,
-        model: str = "qwen/qwen3.8-27b",
+        model: str = "openai/gpt-oss-120b",
         api_key: str | None = None,
-        figures_dir: str | Path = "data/uploads/figures",
     ) -> None:
         self.sqlite = sqlite_store
         self.faiss = faiss_store
@@ -40,7 +34,6 @@ class AgentOrchestrator:
         self.model = model
         self.groq_key = os.getenv("GROQ_API_KEY", "")
         self.api_key = api_key if api_key is not None else self.groq_key
-        self.figures_dir = Path(figures_dir)
 
     def retrieve_with_latency(self, query: str, top_k: int = 3) -> tuple[list[dict], dict[str, float]]:
         """Retrieves chunks and tracks latency for embedding, FAISS, SQLite, and reranking."""
@@ -87,51 +80,12 @@ class AgentOrchestrator:
         ]
         return sources, timings
 
-    def _prepare_multimodal_context(self, chunks: list[dict]) -> tuple[str, list[str]]:
-        """Replaces figure chunk text descriptions with actual base64 images for multimodal VLM generation."""
-        context_lines: list[str] = []
-        image_uris: list[str] = []
-        seen_images: set[str] = set()
-
-        for c in chunks:
-            match = IMAGE_REF_RE.search(c.get("content", ""))
-            if match:
-                img_name = match.group(1)
-                img_path = self.figures_dir / img_name
-                if img_path.exists():
-                    if img_name not in seen_images:
-                        seen_images.add(img_name)
-                        image_uris.append(encode_image_base64(img_path))
-                    # Pass only metadata pointer instead of the long VLM text description
-                    context_lines.append(
-                        f"[Doc: {c['doc']} | Page: {c['page']} | Section: {c['section']}]\n"
-                        f"[Attached Figure Image: ![{c['section']}](/figures/{img_name}) — "
-                        "Inspect the attached raw image directly to answer]"
-                    )
-                    continue
-            context_lines.append(f"[Doc: {c['doc']} | Page: {c['page']}]\n{c['content']}")
-
-        return "\n\n".join(context_lines), image_uris
-
-    def call_groq(
-        self, prompt: str, system: str, image_uris: list[str] | None = None
-    ) -> tuple[str, float]:
-        """Calls Groq Llama 4 multimodal model with text and attached figure images."""
+    def call_groq(self, prompt: str, system: str) -> tuple[str, float]:
+        """Calls Groq openai/gpt-oss-120b text model and returns (answer, latency_ms)."""
         t_start = time.perf_counter()
         if not self.api_key:
             latency_ms = round((time.perf_counter() - t_start) * 1000, 2)
             return f"[No GROQ_API_KEY] Prompt: {prompt}", latency_ms
-
-        if image_uris:
-            user_content: str | list[dict] = [{"type": "text", "text": f"{system}\n\n{prompt}"}]
-            for uri in image_uris[:5]:
-                user_content.append({"type": "image_url", "image_url": {"url": uri}})
-            messages = [{"role": "user", "content": user_content}]
-        else:
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ]
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -139,7 +93,10 @@ class AgentOrchestrator:
         }
         payload = {
             "model": self.model,
-            "messages": messages,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
             "temperature": 0.2,
         }
         resp = httpx.post(
@@ -202,7 +159,11 @@ class AgentOrchestrator:
 
         if not chunks:
             system = "You are a helpful research assistant. Use conversation memory if relevant."
-            prompt = f"Answer the user query only from the given memory context: {memory_context}\n\nQuestion: {query}".strip() if memory_context else query
+            prompt = (
+                f"Answer the user query only from the given memory context: {memory_context}\n\nQuestion: {query}".strip()
+                if memory_context
+                else query
+            )
             answer, llm_ms = self.call_groq(prompt, system)
             self._update_memory(session_id, query, answer)
             timings["llm_generation_ms"] = llm_ms
@@ -215,17 +176,19 @@ class AgentOrchestrator:
                 "latency": timings,
             }
 
-        context, image_uris = self._prepare_multimodal_context(chunks)
+        context = "\n\n".join(
+            [f"[Doc: {c['doc']} | Page: {c['page']} | Section: {c['section']}]\n{c['content']}" for c in chunks]
+        )
         system = (
-            "You are a multimodal research assistant in a week-long multi-turn study. Answer the user query "
-            "using the provided document context, attached figure images, and conversation memory. "
-            "Cite document sources with [Doc, Page]. If a figure image is attached, inspect the image directly "
-            "and include its markdown link ![...](/figures/...) in your answer. Be as detailed and descriptive in your answer as possible, and avoid hallucinating information not present in the context or images."
+            "You are a research assistant in a week-long multi-turn study. Answer the user query "
+            "using the provided document context and conversation memory. "
+            "Cite document sources with [Doc, Page]. If the context contains a figure image link "
+            "like ![...](/figures/...), include that markdown image link in your answer when relevant."
         )
         mem_block = f"Conversation Memory:\n{memory_context}\n\n" if memory_context else ""
         prompt = f"{mem_block}Document Context:\n{context}\n\nQuestion: {query}"
 
-        answer, llm_ms = self.call_groq(prompt, system, image_uris=image_uris)
+        answer, llm_ms = self.call_groq(prompt, system)
         self._update_memory(session_id, query, answer)
         timings["llm_generation_ms"] = llm_ms
         timings["total_ms"] = round((time.perf_counter() - t_total_start) * 1000, 2)
@@ -239,7 +202,7 @@ class AgentOrchestrator:
         print(f" • FAISS Search:        {timings['faiss_search_ms']:>8.2f} ms")
         print(f" • SQLite Parent Lookup:{timings['sqlite_lookup_ms']:>8.2f} ms")
         print(f" • BGE Reranking:       {timings['reranking_ms']:>8.2f} ms")
-        print(f" • VLM Generation:      {timings['llm_generation_ms']:>8.2f} ms")
+        print(f" • Groq LLM Generation: {timings['llm_generation_ms']:>8.2f} ms")
         print("-" * 45)
         print(f" Total Query Latency:   {timings['total_ms']:>8.2f} ms ({timings['total_ms']/1000:.2f} s)")
         print("=" * 45 + "\n")

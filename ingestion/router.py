@@ -10,7 +10,6 @@ from ingestion.markdown_parser import MarkdownParser
 from ingestion.models import IngestionResult
 from ingestion.pdf_parser import PDFParser
 from ingestion.tabular_parser import TabularParser
-from ingestion.vlm_captioner import describe_image
 
 
 class IngestionRouter:
@@ -29,7 +28,7 @@ class IngestionRouter:
     ) -> None:
         self.chunker = chunker or HierarchicalChunker()
         self.figures_dir = figures_dir
-        self.figure_captioner = figure_captioner or describe_image
+        self.figure_captioner = figure_captioner
         self.md_parser = MarkdownParser(self.chunker)
         self.tabular_parser = TabularParser(self.chunker)
         self.pdf_parser = PDFParser(self.chunker, self.tabular_parser, self.figure_captioner, figures_dir)
