@@ -125,7 +125,7 @@ class TabularParser:
         """Generates a rich natural-language and markdown summary of a table for vector retrieval."""
         rows, cols = df.shape
         col_list = ", ".join(f"{c} ({t})" for c, t in schema_dict.items())
-        sample_md = cls._format_markdown_sample(df, max_rows=3)
+        sample_md = cls._format_markdown_sample(df, max_rows=20)
 
         numeric_cols = df.select_dtypes(include="number").columns.tolist()
         stats_lines: list[str] = []

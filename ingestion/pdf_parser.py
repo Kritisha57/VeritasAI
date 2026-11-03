@@ -229,7 +229,8 @@ class PDFParser:
         if not caption:
             caption = f"Figure {idx + 1} in section '{section}' on page {page} of {filename}."
 
-        fig_text = f"[Figure {idx + 1} | Image: {img_path.name if img_path else 'N/A'}] {caption}"
+        img_md = f"\n![Figure {idx + 1}](/figures/{img_path.name})" if img_path else ""
+        fig_text = f"[Figure {idx + 1} | Image: {img_path.name if img_path else 'N/A'}] {caption}{img_md}"
         p_chunks, c_chunks = self.chunker.chunk_section(
             doc_id=doc_id,
             filename=filename,
